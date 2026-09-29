@@ -38,7 +38,17 @@ npm test        # authoritative game-engine tests
 
 ## Deployment
 
-Deploy `server/` to any Node host that supports persistent WebSocket connections. Set `PORT` to the host-provided port and set `CLIENT_URL` to the public frontend URL. Deploy `client/` as a static Vite site, and set `VITE_SERVER_URL` at build time to the public server URL, for example `https://typing-battle-api.example.com`.
+Typing Battle has two deployable parts. GitHub Pages serves only the frontend; the Socket.IO server needs a Node host that supports persistent WebSocket connections.
+
+### GitHub Pages frontend
+
+This repository includes `.github/workflows/deploy-pages.yml`. In GitHub, open **Settings > Pages** and set the source to **GitHub Actions**. Then add a repository secret named `VITE_SERVER_URL` whose value is the public URL of the deployed Node server, for example `https://typing-battle-api.example.com`. Push to `main` and the workflow publishes the frontend at `https://abhiyadav56.github.io/Typing-battle/`.
+
+The workflow builds with the `/Typing-battle/` Vite base path, so JavaScript, CSS, and other assets resolve correctly from a project Pages URL.
+
+### Node / Socket.IO server
+
+Deploy `server/` to a Node host such as Render, Railway, or Fly.io. Use `npm install` followed by `npm run start --prefix server`. Set `PORT` to the host-provided port and set `CLIENT_URL=https://abhiyadav56.github.io`. Do not use GitHub Pages for this part: it cannot run Express or Socket.IO.
 
 The frontend and server can live on different hosts. Socket.IO CORS is restricted to `CLIENT_URL` when that variable is supplied. Never put a localhost server URL into a production frontend build.
 
