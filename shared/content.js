@@ -16,10 +16,14 @@ export const DIFFICULTY = {
 export const normalizeText = (value) => String(value || '').normalize('NFC').trim();
 export const actionFor = (seed) => ACTIONS[Math.abs(seed) % ACTIONS.length];
 
-export function nextCommand({ language, difficulty, sequence, seed, english, hindi }) {
+export function nextCommand({ language, difficulty, sequence, seed, english, hindi, lastText = '' }) {
   const set = language === 'both' ? ((seed + sequence) % 2 ? hindi : english) : language === 'hindi' ? hindi : english;
   const options = ((seed * 13 + sequence * 7) % 100 < DIFFICULTY[difficulty].sentenceChance * 100 ? set.sentences : set.words)
     .filter((item) => normalizeText(item).length >= DIFFICULTY[difficulty].minLength);
-  const text = options[(seed * 17 + sequence * 11) % options.length] || set.words[0];
+  const start = (seed * 17 + sequence * 11 + Math.floor(sequence / 3) * 19) % options.length;
+  const text = options.find((item, index) => index >= start && normalizeText(item) !== lastText)
+    || options.find((item) => normalizeText(item) !== lastText)
+    || options[start]
+    || set.words[0];
   return { id: `${set.language}-${sequence}-${seed}`, text: normalizeText(text), language: set.language, action: actionFor(seed + sequence).id };
 }

@@ -614,6 +614,7 @@ button:disabled {
 .fighter.counter {
   animation: lunge .46s ease;
 }
+.fighter.attack .body i:first-child,.fighter.counter .body i:first-child{animation:punch .46s ease}.fighter.special .body i:first-child{animation:heavyPunch .62s ease}.fighter.attack:after,.fighter.counter:after,.fighter.special:after{content:"";position:absolute;top:72px;left:49px;width:42px;height:3px;background:#ffcf79;opacity:0;transform-origin:left center}.fighter.attack:after,.fighter.counter:after{animation:slash .35s ease}.fighter.special:after{width:62px;height:5px;background:#ff776f;animation:slash .56s ease}.fighter.defense{animation:guard .48s ease}.fighter.defense .body i:first-child{transform:rotate(-42deg)}.fighter.defense .body i:last-child{transform:rotate(38deg)}.fighter.dodge .head,.fighter.dodge .body{transform:skewY(-16deg)}.fighter.hit .head{animation:headSnap .46s ease}.fighter.hit .legs{animation:stumble .46s ease}
 .fighter.defense .body:after {
   content: "";
   position: absolute;
@@ -896,6 +897,7 @@ button:disabled {
 @keyframes lunge {
   30%{transform:translateX(-50%) rotate(-12deg) scale(1.05)}50%{margin-left:52px;transform:translateX(-50%) rotate(20deg) scale(1.12)}
 }
+@keyframes punch{30%{transform:rotate(-45deg)}55%{transform:rotate(-8deg) scaleX(1.8)}100%{transform:rotate(32deg)}}@keyframes heavyPunch{25%{transform:rotate(-82deg)}60%{transform:rotate(-5deg) scaleX(2.15)}100%{transform:rotate(32deg)}}@keyframes slash{35%{opacity:1;transform:scaleX(1.2)}100%{opacity:0;transform:scaleX(1.8)}}@keyframes guard{50%{transform:translateX(-50%) scale(.93) rotate(-9deg)}}@keyframes headSnap{45%{margin-left:12px;transform:rotate(20deg)}}@keyframes stumble{50%{margin-left:13px;transform:rotate(-18deg)}}
 @keyframes dodge {
   50% {
     margin-bottom: 18px;

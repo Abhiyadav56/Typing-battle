@@ -1,6 +1,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createRoom, setReady, startMatch, submitCommand, tickRoom } from '../src/gameEngine.js';
+import { nextCommand } from '../../shared/content.js';
+import { english, hindi } from '../../shared/contentData.js';
+
+test('command generator does not repeat the prior prompt', () => {
+  const first = nextCommand({ language: 'english', difficulty: 'medium', sequence: 4, seed: 62, english, hindi });
+  const second = nextCommand({ language: 'english', difficulty: 'medium', sequence: 5, seed: 62, english, hindi, lastText: first.text });
+  assert.notEqual(second.text, first.text);
+});
 
 test('a ready room starts, accepts an exact command, and advances state', () => {
   const room = createRoom('one', 'One', { language: 'english', difficulty: 'medium' });

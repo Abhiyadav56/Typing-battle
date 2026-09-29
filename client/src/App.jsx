@@ -776,6 +776,7 @@ function SoloGame({ name, settings, exit, controls }) {
           seed: 62,
           english,
           hindi,
+          lastText: previous.command.text,
         }),
         defenseUntil: action === "defense" ? now + 1700 : previous.defenseUntil,
         dodgeUntil: action === "dodge" ? now + 1400 : previous.dodgeUntil,
@@ -1002,7 +1003,29 @@ function Health({ player, flip }) {
     </div>
   );
 }
+
+function useCombatSound(event) {
+  useEffect(() => {
+    if (!event?.type || event.type === "solo" || event.type === "join") return;
+    const Audio = window.AudioContext || window.webkitAudioContext;
+    if (!Audio) return;
+    const context = new Audio();
+    const tone = (frequency, duration, volume, wave = "sine", delay = 0) => {
+      const oscillator = context.createOscillator(); const gain = context.createGain();
+      oscillator.type = wave; oscillator.frequency.setValueAtTime(frequency, context.currentTime + delay);
+      gain.gain.setValueAtTime(volume, context.currentTime + delay); gain.gain.exponentialRampToValueAtTime(0.001, context.currentTime + delay + duration);
+      oscillator.connect(gain).connect(context.destination); oscillator.start(context.currentTime + delay); oscillator.stop(context.currentTime + delay + duration);
+    };
+    if (event.damage) { tone(event.type === "special" ? 80 : 110, .16, .09, "sawtooth"); tone(48, .22, .07, "triangle", .04); }
+    else if (event.type === "defense") tone(420, .12, .05, "square");
+    else if (event.type === "dodge" || event.type === "move") tone(260, .1, .04, "sine");
+    else if (event.type === "finish") { tone(523, .18, .06, "triangle"); tone(784, .32, .06, "triangle", .16); }
+    return () => context.close();
+  }, [event]);
+}
+
 function Arena({ players, event }) {
+  useCombatSound(event);
   const one = players[0];
   const two = players[1];
   return (

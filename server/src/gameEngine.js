@@ -37,7 +37,7 @@ export function publicRoom(room) {
 function newCommand(room, player) {
   player.command = nextCommand({
     language: room.language, difficulty: room.difficulty, sequence: player.commandSequence,
-    seed: (player.side + 2) * 31, english, hindi
+    seed: (player.side + 2) * 31, english, hindi, lastText: player.command?.text
   });
 }
 
