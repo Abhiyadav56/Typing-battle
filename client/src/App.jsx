@@ -49,6 +49,7 @@ const soloConfig = {
 
 function makeSoloGame(name, settings) {
   const startedAt = Date.now();
+  const promptSeed = Math.floor(Math.random() * 100000);
   return {
     startedAt,
     endsAt: startedAt + soloConfig[settings.difficulty].duration * 1000,
@@ -72,11 +73,12 @@ function makeSoloGame(name, settings) {
     },
     rival: { id: "solo-rival", name: "Arena AI", health: 100, position: 72 },
     commandSequence: 0,
+    promptSeed,
     command: nextCommand({
       language: settings.language,
       difficulty: settings.difficulty,
       sequence: 0,
-      seed: 62,
+      seed: promptSeed,
       english,
       hindi,
     }),
@@ -773,7 +775,7 @@ function SoloGame({ name, settings, exit, controls }) {
           language: settings.language,
           difficulty: settings.difficulty,
           sequence: nextSequence,
-          seed: 62,
+          seed: previous.promptSeed,
           english,
           hindi,
           lastText: previous.command.text,

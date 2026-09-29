@@ -20,7 +20,7 @@ export function createRoom(hostId, name, settings) {
   const host = makePlayer(hostId, name, 0);
   return {
     code: makeCode(), hostId, language: settings.language, difficulty: settings.difficulty,
-    phase: 'lobby', createdAt: now(), countdownEndsAt: null, matchEndsAt: null, pausedAt: null, pauseVotes: [], winnerId: null,
+    phase: 'lobby', createdAt: now(), countdownEndsAt: null, matchEndsAt: null, pausedAt: null, pauseVotes: [], commandSeed: Math.floor(Math.random() * 100000), winnerId: null,
     players: [host], lastEvent: { type: 'join', message: `${host.name} created the arena.` }
   };
 }
@@ -37,7 +37,7 @@ export function publicRoom(room) {
 function newCommand(room, player) {
   player.command = nextCommand({
     language: room.language, difficulty: room.difficulty, sequence: player.commandSequence,
-    seed: (player.side + 2) * 31, english, hindi, lastText: player.command?.text
+    seed: room.commandSeed + (player.side + 2) * 31, english, hindi, lastText: player.command?.text
   });
 }
 
@@ -56,7 +56,7 @@ export function startMatch(room) {
   room.countdownEndsAt = started + 4000;
   room.matchEndsAt = room.countdownEndsAt + DIFFICULTY[room.difficulty].duration * 1000;
   room.winnerId = null;
-  room.pausedAt = null; room.pauseVotes = [];
+  room.pausedAt = null; room.pauseVotes = []; room.commandSeed = Math.floor(Math.random() * 100000);
   room.players.forEach((player) => {
     player.health = 100; player.position = player.side ? 72 : 28; player.commandSequence = 0;
     player.lastAction = null; player.lastActionAt = 0; player.cooldowns = {}; player.stats = {
