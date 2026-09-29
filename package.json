@@ -1,0 +1,19 @@
+{
+  "name": "typing-battle",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "client",
+    "server"
+  ],
+  "scripts": {
+    "dev": "concurrently \"npm run dev --prefix server\" \"npm run dev --prefix client\"",
+    "build": "npm run build --prefix client",
+    "start": "npm run start --prefix server",
+    "test": "node --test server/test/*.test.js"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  }
+}
