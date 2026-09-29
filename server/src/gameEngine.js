@@ -20,7 +20,7 @@ export function createRoom(hostId, name, settings) {
   const host = makePlayer(hostId, name, 0);
   return {
     code: makeCode(), hostId, language: settings.language, difficulty: settings.difficulty,
-    phase: 'lobby', createdAt: now(), countdownEndsAt: null, matchEndsAt: null, winnerId: null,
+    phase: 'lobby', createdAt: now(), countdownEndsAt: null, matchEndsAt: null, pausedAt: null, pauseVotes: [], winnerId: null,
     players: [host], lastEvent: { type: 'join', message: `${host.name} created the arena.` }
   };
 }
@@ -28,7 +28,7 @@ export function createRoom(hostId, name, settings) {
 export function publicRoom(room) {
   return {
     code: room.code, hostId: room.hostId, language: room.language, difficulty: room.difficulty,
-    phase: room.phase, countdownEndsAt: room.countdownEndsAt, matchEndsAt: room.matchEndsAt,
+    phase: room.phase, countdownEndsAt: room.countdownEndsAt, matchEndsAt: room.matchEndsAt, pauseVotes: room.pauseVotes,
     winnerId: room.winnerId, lastEvent: room.lastEvent,
     players: room.players.map(({ token, cooldowns, ...player }) => player)
   };
@@ -56,6 +56,7 @@ export function startMatch(room) {
   room.countdownEndsAt = started + 4000;
   room.matchEndsAt = room.countdownEndsAt + DIFFICULTY[room.difficulty].duration * 1000;
   room.winnerId = null;
+  room.pausedAt = null; room.pauseVotes = [];
   room.players.forEach((player) => {
     player.health = 100; player.position = player.side ? 72 : 28; player.commandSequence = 0;
     player.lastAction = null; player.lastActionAt = 0; player.cooldowns = {}; player.stats = {
@@ -120,9 +121,26 @@ export function submitCommand(room, playerId, input, errors = 0) {
   return event;
 }
 
+export function togglePause(room, playerId) {
+  if (!room.players.some((player) => player.id === playerId) || !['playing', 'paused'].includes(room.phase)) return null;
+  room.pauseVotes = room.pauseVotes.includes(playerId) ? room.pauseVotes.filter((id) => id !== playerId) : [...room.pauseVotes, playerId];
+  if (room.phase === 'playing' && room.pauseVotes.length === room.players.length) {
+    room.phase = 'paused'; room.pausedAt = now(); room.pauseVotes = [];
+    room.lastEvent = { type: 'pause', message: 'Match paused. Both fighters must resume.' };
+    return { paused: true };
+  }
+  if (room.phase === 'paused' && room.pauseVotes.length === room.players.length) {
+    room.matchEndsAt += now() - room.pausedAt; room.pausedAt = null; room.phase = 'playing'; room.pauseVotes = [];
+    room.lastEvent = { type: 'resume', message: 'Match resumed.' };
+    return { paused: false };
+  }
+  room.lastEvent = { type: 'pause_request', message: `${room.players.find((player) => player.id === playerId).name} wants to ${room.phase === 'paused' ? 'resume' : 'pause'}.` };
+  return { paused: room.phase === 'paused', requested: true };
+}
+
 export function resetRematch(room) {
   if (room.players.length !== 2) return false;
-  room.phase = 'lobby'; room.countdownEndsAt = null; room.matchEndsAt = null; room.winnerId = null;
+  room.phase = 'lobby'; room.countdownEndsAt = null; room.matchEndsAt = null; room.pausedAt = null; room.pauseVotes = []; room.winnerId = null;
   room.players.forEach((player) => { player.ready = false; player.command = null; });
   room.lastEvent = { type: 'rematch', message: 'Rematch ready. Confirm when you are ready.' };
   return true;
@@ -135,7 +153,7 @@ export function removePlayer(room, playerId) {
   if (!room.players.length) return { empty: true };
   const remaining = room.players[0];
   room.hostId = remaining.id; remaining.side = 0; remaining.position = 28; remaining.ready = false;
-  room.phase = 'lobby'; room.lastEvent = { type: 'leave', message: `${leaving.name} left the arena.` };
+  room.phase = 'lobby'; room.pauseVotes = []; room.lastEvent = { type: 'leave', message: `${leaving.name} left the arena.` };
   return { empty: false, remaining };
 }
 

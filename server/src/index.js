@@ -2,7 +2,7 @@ import 'dotenv/config';
 import express from 'express';
 import { createServer } from 'node:http';
 import { Server } from 'socket.io';
-import { createRoom, publicRoom, reconnect, removePlayer, resetRematch, setReady, startMatch, submitCommand, tickRoom } from './gameEngine.js';
+import { createRoom, publicRoom, reconnect, removePlayer, resetRematch, setReady, startMatch, submitCommand, tickRoom, togglePause } from './gameEngine.js';
 
 const app = express();
 const server = createServer(app);
@@ -67,6 +67,7 @@ io.on('connection', (socket) => {
   socket.on('set_ready', (ready, reply) => { const room = rooms.get(playerRooms.get(socket.id)); if (!room || !setReady(room, socket.id, ready)) return reply?.({ ok: false }); emitRoom(room); reply?.({ ok: true }); });
   socket.on('start_match', (reply) => { const room = rooms.get(playerRooms.get(socket.id)); if (!room || socket.id !== room.hostId || !startMatch(room)) return reply?.({ ok: false, message: 'Both fighters must be ready.' }); emitRoom(room); reply?.({ ok: true }); });
   socket.on('command_complete', (payload, reply) => { const room = rooms.get(playerRooms.get(socket.id)); const result = room && submitCommand(room, socket.id, payload?.text, payload?.errors); if (!result) return reply?.({ ok: false }); emitRoom(room); io.to(room.code).emit('combat_event', result); if (room.phase === 'finished') io.to(room.code).emit('match_end', publicRoom(room)); reply?.({ ok: true, result }); });
+  socket.on('toggle_pause', (reply) => { const room = rooms.get(playerRooms.get(socket.id)); const result = room && togglePause(room, socket.id); if (!result) return reply?.({ ok: false }); emitRoom(room); reply?.({ ok: true, ...result }); });
   socket.on('rematch', (reply) => { const room = rooms.get(playerRooms.get(socket.id)); if (!room || !resetRematch(room)) return reply?.({ ok: false }); emitRoom(room); reply?.({ ok: true }); });
   socket.on('leave_room', () => removeFromRoom(socket));
   socket.on('reconnect_game', (payload, reply) => { const room = rooms.get(String(payload?.code || '').toUpperCase()); const restored = room && reconnect(room, payload.token, socket.id); if (!restored) return reply({ ok: false, message: 'Your old room is no longer available.' }); clearTimeout(disconnectTimers.get(restored.player.token)); disconnectTimers.delete(restored.player.token); playerRooms.delete(restored.previousId); playerRooms.set(socket.id, room.code); socket.join(room.code); reply({ ok: true, room: publicRoom(room), token: restored.player.token }); emitRoom(room); });
