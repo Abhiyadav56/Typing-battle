@@ -1,6 +1,8 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Copy, Gamepad2, HelpCircle, LogOut, Swords, Users, WifiOff } from 'lucide-react';
 import { io } from 'socket.io-client';
+import { nextCommand, normalizeText } from '../../shared/content.js';
+import { english, hindi } from '../../shared/contentData.js';
 
 const socket = io(import.meta.env.VITE_SERVER_URL || window.location.origin, { autoConnect: false, transports: ['websocket', 'polling'] });
 const languageLabel = { english: 'English', hindi: 'Hindi', both: 'English + Hindi' };
@@ -12,6 +14,18 @@ const actions = [
 ];
 const freshName = () => `Fighter ${Math.floor(100 + Math.random() * 900)}`;
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
+const soloConfig = { easy: { duration: 90, attackEvery: 5200, damage: 8 }, medium: { duration: 75, attackEvery: 4000, damage: 11 }, hard: { duration: 60, attackEvery: 3000, damage: 14 } };
+
+function makeSoloGame(name, settings) {
+  const startedAt = Date.now();
+  return {
+    startedAt, endsAt: startedAt + soloConfig[settings.difficulty].duration * 1000, nextAttackAt: startedAt + soloConfig[settings.difficulty].attackEvery,
+    player: { id: 'solo-player', name: name || 'You', health: 100, position: 28, stats: { correctChars: 0, errors: 0, streak: 0, bestStreak: 0, damageDealt: 0, blocks: 0, dodges: 0, completedWords: 0, completedSentences: 0 } },
+    rival: { id: 'solo-rival', name: 'Arena AI', health: 100, position: 72 }, commandSequence: 0,
+    command: nextCommand({ language: settings.language, difficulty: settings.difficulty, sequence: 0, seed: 62, english, hindi }),
+    defenseUntil: 0, dodgeUntil: 0, rivalLastAttackAt: 0, event: { type: 'solo', message: 'The arena AI is watching your first move.' }, finished: false, winner: null
+  };
+}
 
 function App() {
   const [screen, setScreen] = useState('home'); const [room, setRoom] = useState(null); const [message, setMessage] = useState('');
@@ -54,19 +68,20 @@ function App() {
   return <main className="app-shell">
     <header className="topbar"><button className="brand" onClick={leave}><Swords size={22} /> Typing Battle</button>{room && <div className="room-pill"><Users size={15} /> Room {room.code}</div>}<button className="icon-button" aria-label="How to play" title="How to play" onClick={() => setHowTo(true)}><HelpCircle size={20} /></button></header>
     {message && <div className="toast">{message}</div>}
-    {screen === 'home' && <Home name={name} setName={setName} settings={settings} setSettings={setSettings} joinCode={joinCode} setJoinCode={setJoinCode} create={() => enter('create')} join={() => enter('join')} openHow={() => setHowTo(true)} />}
+    {screen === 'home' && <Home name={name} setName={setName} settings={settings} setSettings={setSettings} joinCode={joinCode} setJoinCode={setJoinCode} solo={() => setScreen('solo')} create={() => enter('create')} join={() => enter('join')} openHow={() => setHowTo(true)} />}
     {screen === 'lobby' && room && <Lobby room={room} me={currentPlayer} copyCode={copyCode} ready={ready} start={start} leave={leave} />}
     {screen === 'game' && room && <Game room={room} me={currentPlayer} send={(text, errors) => socket.emit('command_complete', { text, errors })} controls={() => setHowTo(true)} />}
     {screen === 'results' && room && <Results room={room} me={currentPlayer} rematch={rematch} leave={leave} />}
+    {screen === 'solo' && <SoloGame name={name} settings={settings} exit={() => setScreen('home')} controls={() => setHowTo(true)} />}
     {howTo && <HowTo close={() => setHowTo(false)} />}
   </main>;
 }
 
-function Home({ name, setName, settings, setSettings, joinCode, setJoinCode, create, join, openHow }) {
+function Home({ name, setName, settings, setSettings, joinCode, setJoinCode, solo, create, join, openHow }) {
   return <section className="home">
     <div className="title-block"><div className="eyebrow"><Gamepad2 size={16} /> REAL-TIME 1V1 TYPING COMBAT</div><h1>Typing Battle</h1><p>Every completed command becomes a move. Outtype your rival, protect your health, and own the arena.</p></div>
-    <div className="home-grid"><div className="setup-panel"><label>Fighter name<input maxLength="18" value={name} onChange={(event) => setName(event.target.value)} /></label><span className="field-title">Language</span><div className="segmented">{['english', 'hindi', 'both'].map((item) => <button key={item} className={settings.language === item ? 'selected' : ''} onClick={() => setSettings({ ...settings, language: item })}>{languageLabel[item]}</button>)}</div><span className="field-title">Difficulty</span><div className="difficulty-grid">{['easy', 'medium', 'hard'].map((item) => <button key={item} className={settings.difficulty === item ? `difficulty ${item} selected` : `difficulty ${item}`} onClick={() => setSettings({ ...settings, difficulty: item })}><b>{item}</b><small>{item === 'easy' ? '90 sec / relaxed' : item === 'medium' ? '75 sec / balanced' : '60 sec / fierce'}</small></button>)}</div><button className="primary-button" onClick={create}><Swords size={19} /> Create Room</button></div>
-      <aside className="join-panel"><h2>Join a battle</h2><p>Have a room code? Enter it and step into the arena.</p><input className="code-input" placeholder="ABCDE" maxLength="5" value={joinCode} onChange={(event) => setJoinCode(event.target.value.toUpperCase())} /><button className="secondary-button" onClick={join} disabled={joinCode.length !== 5}>Join Room</button><button className="text-button" onClick={openHow}><HelpCircle size={17} /> How to play</button></aside></div>
+    <div className="home-grid"><div className="setup-panel"><label>Fighter name<input maxLength="18" value={name} onChange={(event) => setName(event.target.value)} /></label><span className="field-title">Language</span><div className="segmented">{['english', 'hindi', 'both'].map((item) => <button key={item} className={settings.language === item ? 'selected' : ''} onClick={() => setSettings({ ...settings, language: item })}>{languageLabel[item]}</button>)}</div><span className="field-title">Difficulty</span><div className="difficulty-grid">{['easy', 'medium', 'hard'].map((item) => <button key={item} className={settings.difficulty === item ? `difficulty ${item} selected` : `difficulty ${item}`} onClick={() => setSettings({ ...settings, difficulty: item })}><b>{item}</b><small>{item === 'easy' ? '90 sec / relaxed' : item === 'medium' ? '75 sec / balanced' : '60 sec / fierce'}</small></button>)}</div><button className="primary-button" onClick={solo}><Swords size={19} /> Play Solo</button><button className="secondary-button full-width" onClick={create}>Create Multiplayer Room</button></div>
+      <aside className="join-panel"><h2>Join a battle</h2><p>Solo mode works instantly offline. Multiplayer rooms remain available when a game server is running.</p><input className="code-input" placeholder="ABCDE" maxLength="5" value={joinCode} onChange={(event) => setJoinCode(event.target.value.toUpperCase())} /><button className="secondary-button" onClick={join} disabled={joinCode.length !== 5}>Join Room</button><button className="text-button" onClick={openHow}><HelpCircle size={17} /> How to play</button></aside></div>
     <section className="command-preview"><span>TYPE TO FIGHT</span><div><b>STRIKE</b><i>!</i><b>GUARD</b><i>[]</i><b>DODGE</b><i>&lt;&gt;</i><b>ADVANCE</b><i>-&gt;</i></div></section>
   </section>;
 }
@@ -87,6 +102,61 @@ function Game({ room, me, send, controls }) {
   const elapsed = Math.max(1, (Date.now() - started) / 60000); const liveWpm = Math.round((correct / 5) / elapsed);
   return <section className="game-screen"><div className="hud"><Health player={room.players[0]} /> <div className="timer"><span>{room.phase === 'countdown' ? (clock ? clock : 'GO') : `${String(Math.floor(clock / 60)).padStart(2, '0')}:${String(clock % 60).padStart(2, '0')}`}</span><small>{room.phase === 'countdown' ? 'GET READY' : 'TIME LEFT'}</small></div><Health player={room.players[1]} flip /></div><Arena players={room.players} event={room.lastEvent} /><div className="command-zone"><div className="action-chip">{actionLabel[command?.action] || 'Prepare'} <span>{command?.action === 'attack' ? '!' : command?.action === 'defense' ? '[]' : command?.action === 'dodge' ? '<>' : command?.action === 'move' ? '->' : command?.action === 'counter' ? '*' : '+'}</span></div><div className="target-text" lang={command?.language === 'hindi' ? 'hi' : 'en'}>{targetChars.map((char, index) => <span key={`${char}-${index}`} className={index < typed.length ? (typed[index] === char ? 'correct' : 'wrong') : ''}>{char}</span>)}</div><input ref={input} className="typing-input" value={value} onChange={(event) => change(event.target.value)} disabled={room.phase !== 'playing'} placeholder={room.phase === 'countdown' ? 'The battle is about to begin...' : 'Type the command here'} autoComplete="off" autoCapitalize="off" spellCheck="false" /><div className="progress"><span style={{ width: `${targetChars.length ? clamp(correct / targetChars.length * 100, 0, 100) : 0}%` }} /></div><p className="context-hint">{room.phase === 'playing' ? `Stuck? Type the highlighted command to ${actionLabel[command?.action]?.toLowerCase() || 'act'}.` : 'Get your fingers ready.'}</p></div><div className="live-stats"><Stat label="WPM" value={liveWpm} /><Stat label="Accuracy" value={`${accuracy}%`} /><Stat label="Errors" value={errors} /><Stat label="Streak" value={me?.stats?.streak || 0} /></div><button className="controls-float" onClick={controls}><HelpCircle size={18} /> Controls</button></section>;
 }
+
+function SoloGame({ name, settings, exit, controls }) {
+  const [game, setGame] = useState(() => makeSoloGame(name, settings)); const [value, setValue] = useState(''); const [errors, setErrors] = useState(0); const input = useRef(null);
+  const command = game.command; const targetChars = Array.from(command.text); const typed = Array.from(value.normalize('NFC'));
+  const correct = typed.reduce((total, character, index) => total + (character === targetChars[index] ? 1 : 0), 0);
+  const accuracy = typed.length ? Math.round(correct / typed.length * 100) : 100;
+  const [clock, setClock] = useState(() => Math.ceil((game.endsAt - Date.now()) / 1000));
+
+  useEffect(() => { input.current?.focus(); setValue(''); setErrors(0); }, [command.id]);
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const now = Date.now();
+      setGame((previous) => {
+        if (previous.finished) return previous;
+        const secondsLeft = previous.endsAt - now;
+        if (secondsLeft <= 0) return { ...previous, finished: true, winner: previous.player.health === previous.rival.health ? 'draw' : previous.player.health > previous.rival.health ? 'player' : 'rival', event: { type: 'finish', message: 'Time is up.' } };
+        if (now < previous.nextAttackAt) return previous;
+        const dodged = previous.dodgeUntil > now; const guarded = previous.defenseUntil > now;
+        const rawDamage = soloConfig[settings.difficulty].damage;
+        const damage = dodged ? 0 : guarded ? Math.ceil(rawDamage * 0.25) : rawDamage;
+        const health = Math.max(0, previous.player.health - damage);
+        return { ...previous, player: { ...previous.player, health }, nextAttackAt: now + soloConfig[settings.difficulty].attackEvery, rivalLastAttackAt: now, finished: health === 0, winner: health === 0 ? 'rival' : null, event: { type: 'attack', actorId: previous.rival.id, targetId: previous.player.id, damage, outcome: dodged ? 'AI attack dodged' : guarded ? 'AI attack blocked' : 'Arena AI strikes' } };
+      });
+      setClock(Math.max(0, Math.ceil((game.endsAt - now) / 1000)));
+    }, 150);
+    return () => clearInterval(interval);
+  }, [game.endsAt, settings.difficulty]);
+
+  const complete = (text, completedErrors) => {
+    if (normalizeText(text) !== command.text || game.finished) return;
+    const now = Date.now();
+    setGame((previous) => {
+      const action = previous.command.action; let damage = 0; let position = previous.player.position; let outcome = actionLabel[action];
+      const player = { ...previous.player, stats: { ...previous.player.stats } };
+      player.stats.correctChars += targetChars.length; player.stats.errors += completedErrors; player.stats.streak += 1; player.stats.bestStreak = Math.max(player.stats.bestStreak, player.stats.streak);
+      if (previous.command.text.includes(' ')) player.stats.completedSentences += 1; else player.stats.completedWords += 1;
+      if (action === 'move') { position = Math.min(55, position + 9); outcome = 'You advance'; }
+      if (action === 'defense') { player.stats.blocks += 1; outcome = 'Guard raised'; }
+      if (action === 'dodge') { player.stats.dodges += 1; outcome = 'Ready to dodge'; }
+      if (['attack', 'counter', 'special'].includes(action)) {
+        damage = action === 'special' ? 19 : action === 'counter' && now - previous.rivalLastAttackAt < 1600 ? 15 : action === 'counter' ? 7 : 10;
+        damage += position >= 46 ? 2 : 0; outcome = damage > 0 ? `${actionLabel[action]} lands` : outcome;
+      }
+      const rivalHealth = Math.max(0, previous.rival.health - damage); player.health = previous.player.health; player.position = position; player.stats.damageDealt += damage;
+      const nextSequence = previous.commandSequence + 1;
+      return { ...previous, player, rival: { ...previous.rival, health: rivalHealth }, commandSequence: nextSequence, command: nextCommand({ language: settings.language, difficulty: settings.difficulty, sequence: nextSequence, seed: 62, english, hindi }), defenseUntil: action === 'defense' ? now + 1700 : previous.defenseUntil, dodgeUntil: action === 'dodge' ? now + 1400 : previous.dodgeUntil, finished: rivalHealth === 0, winner: rivalHealth === 0 ? 'player' : null, event: { type: action, actorId: player.id, targetId: previous.rival.id, damage, outcome } };
+    });
+  };
+  const change = (next) => { const nextChars = Array.from(next); const nextErrors = nextChars.length > typed.length && nextChars[nextChars.length - 1] !== targetChars[nextChars.length - 1] ? errors + 1 : errors; setValue(next); setErrors(nextErrors); if (normalizeText(next) === command.text) complete(next, nextErrors); };
+  const minutes = Math.max(1 / 60, (Date.now() - game.startedAt) / 60000); const wpm = Math.round((game.player.stats.correctChars / 5) / minutes);
+  if (game.finished) return <SoloResults game={game} restart={() => setGame(makeSoloGame(name, settings))} exit={exit} />;
+  return <section className="game-screen"><div className="solo-banner">SOLO BATTLE <span>Offline against Arena AI</span></div><div className="hud"><Health player={game.player} /> <div className="timer"><span>{`${String(Math.floor(clock / 60)).padStart(2, '0')}:${String(clock % 60).padStart(2, '0')}`}</span><small>TIME LEFT</small></div><Health player={game.rival} flip /></div><Arena players={[game.player, game.rival]} event={game.event} /><div className="command-zone"><div className="action-chip">{actionLabel[command.action]} <span>{command.action === 'attack' ? '!' : command.action === 'defense' ? '[]' : command.action === 'dodge' ? '<>' : command.action === 'move' ? '->' : command.action === 'counter' ? '*' : '+'}</span></div><div className="target-text" lang={command.language === 'hindi' ? 'hi' : 'en'}>{targetChars.map((character, index) => <span key={`${character}-${index}`} className={index < typed.length ? (typed[index] === character ? 'correct' : 'wrong') : ''}>{character}</span>)}</div><input ref={input} className="typing-input" value={value} onChange={(event) => change(event.target.value)} placeholder="Type the command here" autoComplete="off" autoCapitalize="off" spellCheck="false" /><div className="progress"><span style={{ width: `${clamp(correct / targetChars.length * 100, 0, 100)}%` }} /></div><p className="context-hint">Stuck? Type the highlighted command to {actionLabel[command.action].toLowerCase()}.</p></div><div className="live-stats"><Stat label="WPM" value={wpm} /><Stat label="Accuracy" value={`${accuracy}%`} /><Stat label="Errors" value={errors} /><Stat label="Streak" value={game.player.stats.streak} /></div><button className="controls-float" onClick={controls}><HelpCircle size={18} /> Controls</button></section>;
+}
+
+function SoloResults({ game, restart, exit }) { const player = game.player; const minutes = Math.max(1 / 60, (Date.now() - game.startedAt) / 60000); const wpm = Math.round((player.stats.correctChars / 5) / minutes); const accuracy = Math.round(player.stats.correctChars / Math.max(1, player.stats.correctChars + player.stats.errors) * 100); const title = game.winner === 'player' ? 'Victory!' : game.winner === 'draw' ? 'Draw!' : 'Arena AI wins'; return <section className="results"><div className="section-kicker">SOLO MATCH COMPLETE</div><h1>{title}</h1><p>{game.winner === 'player' ? 'You outtyped the Arena AI.' : game.winner === 'draw' ? 'Neither side gave an inch.' : 'Reset and take the next round.'}</p><div className="result-score"><div className={game.winner === 'player' ? 'winner' : ''}><b>{player.name}</b><strong>{player.health} HP</strong><small>{player.stats.damageDealt} DAMAGE</small></div><div className={game.winner === 'rival' ? 'winner' : ''}><b>Arena AI</b><strong>{game.rival.health} HP</strong><small>AI OPPONENT</small></div></div><div className="results-grid solo-results"><div className="result-stats"><h2>Your typing</h2><p>WPM <b>{wpm}</b></p><p>Accuracy <b>{accuracy}%</b></p><p>Errors <b>{player.stats.errors}</b></p><p>Best streak <b>{player.stats.bestStreak}</b></p><p>Blocks / dodges <b>{player.stats.blocks} / {player.stats.dodges}</b></p><p>Words / sentences <b>{player.stats.completedWords} / {player.stats.completedSentences}</b></p></div></div><div className="lobby-actions"><button className="primary-button" onClick={restart}>Play Again</button><button className="secondary-button" onClick={exit}>Return Home</button></div></section>; }
 
 function Health({ player, flip }) { return <div className={`health ${flip ? 'flip' : ''}`}><div><b>{player?.name || 'Waiting...'}</b><small>{player?.health ?? 0} HP</small></div><div className="health-track"><span style={{ width: `${player?.health ?? 0}%` }} /></div></div>; }
 function Arena({ players, event }) { const one = players[0]; const two = players[1]; return <div className="arena"><div className="arena-grid" /><div className="arena-message">{event?.outcome || event?.message || 'The arena awaits'}</div><Fighter player={one} event={event} side="left" /><Fighter player={two} event={event} side="right" /><div className={`impact ${event?.damage ? 'show' : ''}`} style={{ left: `${event?.targetId === one?.id ? one?.position : two?.position}%` }}>{event?.damage ? `-${event.damage}` : ''}</div></div>; }

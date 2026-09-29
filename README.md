@@ -1,6 +1,6 @@
 # Typing Battle
 
-A real-time two-player typing fighter built with React, Vite, Express, and Socket.IO. The Node server owns rooms, countdowns, commands, combat resolution, health, and results; browsers render the synchronized state.
+A typing-combat game built with React, Vite, Express, and Socket.IO. It includes an offline Solo Battle against the Arena AI plus real-time multiplayer rooms for a deployed Node server.
 
 ## Requirements
 
@@ -17,7 +17,13 @@ npm run dev
 
 Open `http://localhost:5173`. The frontend is served by Vite and the Socket.IO server listens at `http://localhost:3001`. Local Vite development proxies Socket.IO automatically, so no environment file is required for local play.
 
-## Play a match
+## Play Solo
+
+1. Open the game and select a language and difficulty.
+2. Select **Play Solo**. This mode runs entirely in the browser and works without an internet connection or a server.
+3. Complete each displayed command to strike, guard, dodge, advance, counter, or launch a special attack against the Arena AI.
+
+## Play multiplayer
 
 1. Enter a fighter name, choose language and difficulty, then select **Create Room**.
 2. Copy the five-character room code and send it to a friend.
